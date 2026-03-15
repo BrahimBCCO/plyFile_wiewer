@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PLY Viewer — by Brahim Ben Chakroun</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a1a2e; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+/* ── DROP ZONE ── */
+#drop-zone {
+  position: fixed; inset: 0; z-index: 200;
+  background: #1a1a2e;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+}
+#drop-zone.drag-over { background: #0f3460; }
+#drop-zone h1 { font-size: 28px; color: #e94560; letter-spacing: 2px; }
+#drop-zone p { color: #aaa; font-size: 14px; }
+#drop-zone .icon { font-size: 72px; }
+#drop-zone .hint { font-size: 12px; color: #555; }
+.file-btn { background: #e94560; border: none; color: #fff; padding: 12px 32px; border-radius: 6px; cursor: pointer; font-size: 15px; letter-spacing: 1px; transition: background 0.2s; }
+.file-btn:hover { background: #c73652; }
+
+/* Drop zone branding */
+#drop-brand {
+  display: flex; align-items: center; gap: 10px; margin-top: 8px;
+  text-decoration: none;
+  padding: 8px 18px; border-radius: 40px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(126,200,227,0.2);
+  transition: background 0.2s;
+}
+#drop-brand:hover { background: rgba(126,200,227,0.08); }
+#drop-brand img { width: 36px; height: 36px; border-radius: 50%; border: 2px solid #7ec8e3; object-fit: cover; }
+#drop-brand-text { display: flex; flex-direction: column; }
+#drop-brand-text span { font-size: 12px; color: #7ec8e3; letter-spacing: 0.5px; }
+#drop-brand-text small { font-size: 10px; color: #445577; }
+
+/* ── TOP NAV TOOLBAR ── */
+#nav-toolbar {
+  background: #0d1b2a;
+  border-bottom: 1px solid #0f3460;
+  display: none;
+  flex-direction: row;
+  align-items: center;
+  padding: 4px 10px;
+  gap: 4px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  min-height: 44px;
+  user-select: none;
+}
+.tb-sep { width: 1px; background: #0f3460; height: 28px; margin: 0 4px; }
+.tb-group { display: flex; align-items: center; gap: 2px; }
+.tb-group-label { font-size: 9px; color: #445577; text-transform: uppercase; letter-spacing: 1px; padding: 0 4px 0 8px; }
+
+.tb-btn {
+  background: #16213e; border: 1px solid #1e3a5f; color: #aabbcc;
+  width: 34px; height: 34px; border-radius: 5px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-size: 14px; line-height: 1; transition: all 0.12s; position: relative; flex-shrink: 0;
+}
+.tb-btn:hover { background: #1e3a5f; border-color: #7ec8e3; color: #fff; }
+.tb-btn.active { background: #0f3460; border-color: #e94560; color: #e94560; }
+.tb-btn[title]:hover::after {
+  content: attr(title);
+  position: absolute; top: 38px; left: 50%; transform: translateX(-50%);
+  background: #0d1b2a; border: 1px solid #e94560; color: #fff;
+  padding: 3px 8px; border-radius: 4px; font-size: 11px;
+  white-space: nowrap; z-index: 9999; pointer-events: none;
+}
+.tb-btn.wide { width: auto; padding: 0 10px; font-size: 11px; flex-direction: row; gap: 4px; }
+.tb-select {
+  background: #16213e; border: 1px solid #1e3a5f; color: #aabbcc;
+  padding: 4px 6px; border-radius: 5px; font-size: 11px; cursor: pointer; height: 34px;
+}
+.tb-select:hover { border-color: #7ec8e3; }
+.tb-label { font-size: 9px; color: #445577; }
+
+/* Toolbar branding (compact) */
+#tb-brand {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 7px;
+  text-decoration: none;
+  padding: 3px 10px 3px 6px;
+  border-radius: 30px;
+  border: 1px solid rgba(126,200,227,0.18);
+  background: rgba(126,200,227,0.04);
+  transition: background 0.18s;
+  flex-shrink: 0;
+}
+#tb-brand:hover { background: rgba(126,200,227,0.1); }
+#tb-brand img { width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid #7ec8e3; object-fit: cover; }
+#tb-brand-text { display: flex; flex-direction: column; line-height: 1.2; }
+#tb-brand-text span { font-size: 10px; color: #7ec8e3; white-space: nowrap; }
+#tb-brand-text small { font-size: 9px; color: #445577; }
+
+/* ── APP ── */
+#app { display: none; flex: 1; overflow: hidden; flex-direction: row; }
+#sidebar {
+  width: 255px; min-width: 200px; background: #16213e;
+  display: flex; flex-direction: column; border-right: 1px solid #0f3460; overflow: hidden;
+}
+#sidebar .title { padding: 8px 12px 5px; font-size: 11px; color: #e94560; letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid #0f3460; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#sidebar h2 { padding: 5px 12px 2px; font-size: 9px; color: #7ec8e3; text-transform: uppercase; letter-spacing: 1px; }
+#layer-list { flex: 1; overflow-y: auto; padding: 2px 0; }
+.layer-item { padding: 4px 12px; font-size: 11px; cursor: pointer; border-left: 3px solid transparent; transition: all 0.12s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.layer-item:hover { background: #0f3460; }
+.layer-item.active { border-left-color: #e94560; background: #0f3460; color: #fff; }
+#controls { padding: 7px 12px; border-top: 1px solid #0f3460; display: flex; flex-direction: column; gap: 5px; }
+.ctrl-row { display: flex; align-items: center; gap: 5px; }
+.ctrl-row label { font-size: 10px; color: #aaa; flex: 1; }
+.ctrl-row span { font-size: 10px; color: #7ec8e3; min-width: 28px; text-align: right; }
+input[type=range] { width: 100%; accent-color: #e94560; }
+#edit-panel { padding: 7px 12px; border-top: 1px solid #0f3460; }
+#edit-panel h2 { padding: 0 0 4px; }
+.edit-row { display: flex; flex-direction: column; gap: 2px; margin-bottom: 5px; }
+.edit-row label { font-size: 10px; color: #aaa; }
+.edit-row input { background: #0f3460; border: 1px solid #e94560; color: #fff; padding: 3px 5px; border-radius: 3px; font-size: 11px; width: 100%; }
+.btn { background: #e94560; border: none; color: #fff; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; width: 100%; margin-top: 2px; }
+.btn:hover { background: #c73652; }
+.btn.sec { background: #0f3460; border: 1px solid #e94560; }
+.btn.sec:hover { background: #1a4a80; }
+
+/* ── PIVOT PANEL ── */
+#pivot-panel {
+  padding: 7px 12px; border-top: 1px solid #0f3460;
+}
+#pivot-panel h2 { padding: 0 0 6px; }
+.pivot-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; margin-bottom: 5px; }
+.pivot-btns button {
+  background: #0d1b2a; border: 1px solid #1e3a5f; color: #aabbcc;
+  padding: 3px 4px; border-radius: 3px; cursor: pointer; font-size: 9px;
+  transition: all 0.12s; white-space: nowrap;
+}
+.pivot-btns button:hover { background: #1e3a5f; border-color: #7ec8e3; color: #fff; }
+.pivot-btns button.active { background: #0f3460; border-color: #e94560; color: #e94560; }
+.pivot-custom { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; }
+.pivot-custom-row { display: flex; align-items: center; gap: 4px; }
+.pivot-custom-row label { font-size: 9px; color: #aaa; width: 14px; }
+.pivot-custom-row input {
+  background: #0f3460; border: 1px solid #1e3a5f; color: #fff;
+  padding: 2px 4px; border-radius: 3px; font-size: 10px; flex: 1;
+}
+.pivot-indicator {
+  margin-top: 4px; padding: 3px 6px; background: #0d1b2a;
+  border-radius: 3px; border: 1px solid #1e3a5f;
+  font-size: 9px; color: #7ec8e3; text-align: center;
+}
+
+#main { flex: 1; position: relative; display: flex; flex-direction: column; min-width: 0; }
+#canvas { flex: 1; display: block; }
+#info-bar {
+  background: #0d1b2a; border-top: 1px solid #0f3460;
+  padding: 3px 12px; font-size: 10px; color: #7ec8e3;
+  display: flex; gap: 12px; flex-wrap: wrap; align-items: center; flex-shrink: 0;
+}
+#info-bar .nav-hint { color: #334; font-size: 10px; margin-left: auto; }
+#tooltip {
+  position: absolute; background: rgba(13,27,42,0.96); border: 1px solid #e94560;
+  padding: 5px 9px; font-size: 11px; border-radius: 4px; pointer-events: none;
+  display: none; color: #fff; max-width: 230px; line-height: 1.7; z-index: 100;
+}
+.coord-badge { display: inline-block; background: #0f3460; padding: 1px 4px; border-radius: 3px; margin: 1px; font-size: 10px; }
+
+/* ── OVERLAYS ── */
+#nav-mode-indicator {
+  position: absolute; top: 10px; left: 10px; z-index: 50;
+  background: rgba(13,27,42,0.82); border: 1px solid #1e3a5f;
+  padding: 4px 10px; border-radius: 4px; font-size: 11px; color: #7ec8e3;
+  pointer-events: none; display: none;
+}
+#pivot-mode-indicator {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 50;
+  background: rgba(233,69,96,0.15); border: 1px solid #e94560;
+  padding: 5px 14px; border-radius: 20px; font-size: 11px; color: #e94560;
+  pointer-events: none; display: none; white-space: nowrap;
+}
+#axis-canvas {
+  position: absolute; bottom: 32px; right: 10px;
+  width: 70px; height: 70px; z-index: 50; display: none;
+}
+
+/* Watermark branding bottom-left of canvas */
+#canvas-brand {
+  position: absolute; bottom: 36px; left: 10px; z-index: 50;
+  display: none;
+  align-items: center; gap: 7px;
+  text-decoration: none;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+#canvas-brand:hover { opacity: 1; }
+#canvas-brand img { width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid #7ec8e3; object-fit: cover; }
+#canvas-brand span { font-size: 9px; color: #7ec8e3; white-space: nowrap; }
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: #16213e; }
+::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ── DROP ZONE ── -->
+<div id="drop-zone">
+  <div class="icon">📂</div>
+  <h1>PLY Viewer</h1>
+  <p>Load a <strong>.ply</strong> laser ply file to visualize and edit it in 3D</p>
+  <button class="file-btn" onclick="document.getElementById('fi1').click()">Choose .ply File</button>
+  <input type="file" id="fi1" accept=".ply" style="display:none" onchange="loadFile(this.files[0])">
+  <div class="hint">or drag &amp; drop a .ply file anywhere on this page</div>
+  <a id="drop-brand" href="https://www.linkedin.com/in/brahimbenchakroun/" target="_blank" rel="noopener">
+    <img src="https://media.licdn.com/dms/image/v2/D4E03AQFCuuurvdLqZA/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1728899865907?e=1775088000&v=beta&t=k8JGkdryya3alo3Y3kNYy6N7NqyC0OEp5OVvPv32fUk" alt="Brahim Ben Chakroun">
+    <div id="drop-brand-text">
+      <span>Brahim Ben Chakroun</span>
+      <small>View LinkedIn Profile →</small>
+    </div>
+  </a>
+</div>
+
+<!-- ── NAV TOOLBAR ── -->
+<div id="nav-toolbar">
+
+  <!-- FILE -->
+  <div class="tb-group">
+    <button class="tb-btn wide" title="Open .ply file" onclick="document.getElementById('fi2').click()">📂 Open</button>
+    <input type="file" id="fi2" accept=".ply" style="display:none" onchange="loadFile(this.files[0])">
+  </div>
+  <div class="tb-sep"></div>
+
+  <!-- NAMED VIEWS -->
+  <div class="tb-group">
+    <span class="tb-group-label">Views</span>
+    <button class="tb-btn" title="Front View  [1]" onclick="setView('front')"><span style="font-size:18px">▭</span><span class="tb-label">Front</span></button>
+    <button class="tb-btn" title="Back View  [2]"  onclick="setView('back')"><span style="font-size:18px">▭</span><span class="tb-label">Back</span></button>
+    <button class="tb-btn" title="Left View  [3]"  onclick="setView('left')"><span style="font-size:18px">▯</span><span class="tb-label">Left</span></button>
+    <button class="tb-btn" title="Right View  [4]" onclick="setView('right')"><span style="font-size:18px">▯</span><span class="tb-label">Right</span></button>
+    <button class="tb-btn" title="Top View  [5]"   onclick="setView('top')"><span style="font-size:18px">▬</span><span class="tb-label">Top</span></button>
+    <button class="tb-btn" title="Bottom View  [6]"onclick="setView('bottom')"><span style="font-size:18px">▬</span><span class="tb-label">Btm</span></button>
+    <button class="tb-btn" title="Isometric View  [7]" onclick="setView('iso')"><span style="font-size:16px">◇</span><span class="tb-label">Iso</span></button>
+  </div>
+  <div class="tb-sep"></div>
+
+  <!-- NAV MODES -->
+  <div class="tb-group">
+    <span class="tb-group-label">Mode</span>
+    <button class="tb-btn active" id="mode-rotate" title="Rotate — Left drag  [R]" onclick="setNavMode('rotate')"><span style="font-size:16px">🔄</span><span class="tb-label">Rot</span></button>
+    <button class="tb-btn" id="mode-pan"    title="Pan — Mid/Shift drag  [P]"    onclick="setNavMode('pan')"><span style="font-size:16px">✋</span><span class="tb-label">Pan</span></button>
+    <button class="tb-btn" id="mode-zoom"   title="Zoom — Right drag  [Z]"       onclick="setNavMode('zoom')"><span style="font-size:16px">🔍</span><span class="tb-label">Zoom</span></button>
+    <button class="tb-btn" id="mode-fly"    title="Fly-through — WASD  [F]"      onclick="setNavMode('fly')"><span style="font-size:16px">🚀</span><span class="tb-label">Fly</span></button>
+    <button class="tb-btn" id="mode-pivot"  title="Set Pivot — Click to pick pivot point  [V]" onclick="setNavMode('pivot')"><span style="font-size:16px">🎯</span><span class="tb-label">Pivot</span></button>
+  </div>
+  <div class="tb-sep"></div>
+
+  <!-- ZOOM -->
+  <div class="tb-group">
+    <span class="tb-group-label">Zoom</span>
+    <button class="tb-btn" title="Zoom In  [+]"         onclick="zoomStep(1.2)"><span style="font-size:18px">＋</span></button>
+    <button class="tb-btn" title="Zoom Out  [-]"        onclick="zoomStep(0.83)"><span style="font-size:18px">－</span></button>
+    <button class="tb-btn" title="Fit All — reset view  [A]" onclick="fitAll()"><span style="font-size:16px">⊡</span><span class="tb-label">Fit</span></button>
+    <button class="tb-btn" title="Zoom to Selection  [S]"   onclick="zoomToSelection()"><span style="font-size:16px">🎯</span><span class="tb-label">Sel</span></button>
+  </div>
+  <div class="tb-sep"></div>
+
+  <!-- ROTATE STEPS -->
+  <div class="tb-group">
+    <span class="tb-group-label">Rotate</span>
+    <button class="tb-btn" title="Rotate Left 90°"  onclick="rotateStepped(-Math.PI/2,0)"><span style="font-size:18px">↺</span></button>
+    <button class="tb-btn" title="Rotate Right 90°" onclick="rotateStepped(Math.PI/2,0)"><span style="font-size:18px">↻</span></button>
+    <button class="tb-btn" title="Tilt Up 90°"      onclick="rotateStepped(0,-Math.PI/2)"><span style="font-size:18px">⬆</span></button>
+    <button class="tb-btn" title="Tilt Down 90°"    onclick="rotateStepped(0,Math.PI/2)"><span style="font-size:18px">⬇</span></button>
+    <button class="tb-btn" title="Flip Horizontal"  onclick="flipAxis('x')"><span style="font-size:18px">↔</span></button>
+    <button class="tb-btn" title="Flip Vertical"    onclick="flipAxis('y')"><span style="font-size:18px">↕</span></button>
+  </div>
+  <div class="tb-sep"></div>
+
+  <!-- DISPLAY -->
+  <div class="tb-group">
+    <span class="tb-group-label">Display</span>
+    <button class="tb-btn" id="btn-wireframe" title="Wireframe only  [W]"     onclick="setDisplay('wire')"><span style="font-size:16px">⬡</span><span class="tb-label">Wire</span></button>
+    <button class="tb-btn active" id="btn-shaded" title="Shaded fill  [E]"    onclick="setDisplay('shade')"><span style="font-size:16px">⬢</span><span class="tb-label">Shade</span></button>
+    <button class="tb-btn" id="btn-normals" title="Surface normals  [N]"      onclick="toggleNormals()"><span style="font-size:14px">↗</span><span class="tb-label">Norm</span></button>
+    <button class="tb-btn" id="btn-bbox"    title="Bounding box  [B]"         onclick="toggleBbox()"><span style="font-size:14px">⬜</span><span class="tb-label">BBox</span></button>
+    <button class="tb-btn" id="btn-grid"    title="Grid  [G]"                 onclick="toggleGrid()"><span style="font-size:14px">⊞</span><span class="tb-label">Grid</span></button>
+    <button class="tb-btn active" id="btn-axes" title="Axis indicator  [X]"   onclick="toggleAxes()"><span style="font-size:14px">⊕</span><span class="tb-label">Axes</span></button>
+    <button class="tb-btn" id="btn-pivot-vis" title="Show Pivot Point  [I]"   onclick="togglePivotVis()"><span style="font-size:14px">✛</span><span class="tb-label">Pvt</span></button>
+  </div>
+  <div class="tb-sep"></div>
+
+  <!-- SECTION PLANE -->
+  <div class="tb-group">
+    <span class="tb-group-label">Section</span>
+    <button class="tb-btn" id="btn-clip" title="Toggle section plane  [C]" onclick="toggleClip()"><span style="font-size:16px">✂</span><span class="tb-label">Cut</span></button>
+    <select class="tb-select" id="clip-axis" title="Clip axis" onchange="draw()">
+      <option value="x">X</option>
+      <option value="y">Y</option>
+      <option value="z">Z</option>
+    </select>
+    <input type="range" id="clip-slider" min="-100" max="100" value="0"
+      style="width:65px;accent-color:#e94560" oninput="draw()" title="Section plane position">
+  </div>
+  <div class="tb-sep"></div>
+
+  <!-- RESET -->
+  <div class="tb-group">
+    <button class="tb-btn" title="Reset View  [Home]" onclick="resetCamera()"><span style="font-size:18px">⟲</span></button>
+  </div>
+
+  <!-- BRANDING in toolbar -->
+  <a id="tb-brand" href="https://www.linkedin.com/in/brahimbenchakroun/" target="_blank" rel="noopener">
+    <img src="https://media.licdn.com/dms/image/v2/D4E03AQFCuuurvdLqZA/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1728899865907?e=1775088000&v=beta&t=k8JGkdryya3alo3Y3kNYy6N7NqyC0OEp5OVvPv32fUk" alt="Brahim Ben Chakroun">
+    <div id="tb-brand-text">
+      <span>Brahim Ben Chakroun</span>
+      <small>Made by</small>
+    </div>
+  </a>
+
+</div>
+
+<!-- ── APP BODY ── -->
+<div id="app">
+  <div id="sidebar">
+    <div class="title" id="file-title">–</div>
+    <h2>Layers</h2>
+    <div id="layer-list"></div>
+
+    <!-- PIVOT PANEL -->
+    <div id="pivot-panel">
+      <h2>🎯 Pivot Point</h2>
+      <div class="pivot-btns">
+        <button id="pv-center" class="active" onclick="setPivotPreset('center')" title="Rotate around model center">⊙ Center</button>
+        <button id="pv-origin" onclick="setPivotPreset('origin')" title="Rotate around world origin (0,0,0)">⊕ Origin</button>
+        <button id="pv-selection" onclick="setPivotPreset('selection')" title="Rotate around selected ply centroid">⬡ Selection</button>
+        <button id="pv-bbox-min" onclick="setPivotPreset('bbox-min')" title="Rotate around bounding box minimum corner">◤ BBox Min</button>
+        <button id="pv-bbox-max" onclick="setPivotPreset('bbox-max')" title="Rotate around bounding box maximum corner">◢ BBox Max</button>
+        <button id="pv-click" onclick="setPivotPreset('click')" title="Click on canvas to set pivot [V]">🖱 Click…</button>
+      </div>
+      <div class="pivot-custom">
+        <div style="font-size:9px;color:#aaa;margin-bottom:3px;">Custom pivot (world coords):</div>
+        <div class="pivot-custom-row"><label>X</label><input id="pv-x" type="number" value="0" step="1" oninput="setPivotCustom()"></div>
+        <div class="pivot-custom-row"><label>Y</label><input id="pv-y" type="number" value="0" step="1" oninput="setPivotCustom()"></div>
+        <div class="pivot-custom-row"><label>Z</label><input id="pv-z" type="number" value="0" step="1" oninput="setPivotCustom()"></div>
+      </div>
+      <div class="pivot-indicator" id="pivot-info">Pivot: Center</div>
+    </div>
+
+    <div id="edit-panel">
+      <h2>✏️ Edit Selected Ply</h2>
+      <div class="edit-row"><label>Ply Name</label><input id="edit-name" type="text" placeholder="Click a ply first…"/></div>
+      <div class="edit-row"><label>Offset X</label><input id="edit-dx" type="number" value="0" step="1"/></div>
+      <div class="edit-row"><label>Offset Y</label><input id="edit-dy" type="number" value="0" step="1"/></div>
+      <div class="edit-row"><label>Offset Z</label><input id="edit-dz" type="number" value="0" step="1"/></div>
+      <button class="btn" onclick="applyEdit()">Apply</button>
+      <button class="btn sec" onclick="resetEdit()">Reset Offsets</button>
+    </div>
+    <div id="controls">
+      <div class="ctrl-row"><label>Opacity</label><input type="range" min="10" max="100" value="70" oninput="setOpacity(this.value)"><span id="opacity-val">70%</span></div>
+      <div class="ctrl-row"><label>Line Width</label><input type="range" min="1" max="5" value="1" step="0.5" oninput="setLineWidth(this.value)"><span id="lw-val">1</span></div>
+    </div>
+  </div>
+
+  <div id="main">
+    <canvas id="canvas"></canvas>
+    <canvas id="axis-canvas" width="140" height="140"></canvas>
+    <div id="nav-mode-indicator"></div>
+    <div id="pivot-mode-indicator">🎯 Click anywhere on canvas to set pivot point — press V or Esc to cancel</div>
+    <div id="tooltip"></div>
+
+    <!-- Canvas watermark brand -->
+    <a id="canvas-brand" href="https://www.linkedin.com/in/brahimbenchakroun/" target="_blank" rel="noopener">
+      <img src="https://media.licdn.com/dms/image/v2/D4E03AQFCuuurvdLqZA/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1728899865907?e=1775088000&v=beta&t=k8JGkdryya3alo3Y3kNYy6N7NqyC0OEp5OVvPv32fUk" alt="Brahim Ben Chakroun">
+      <span>Brahim Ben Chakroun</span>
+    </a>
+
+    <div id="info-bar">
+      <span id="info-plies">Plies: –</span>
+      <span id="info-poly">Polygons: –</span>
+      <span id="info-pts">Points: –</span>
+      <span id="info-layer">Layer: ALL</span>
+      <span id="info-zoom">Zoom: 100%</span>
+      <span id="info-pivot-bar">Pivot: Center</span>
+      <span id="info-hover">Hover a polygon for details</span>
+      <span class="nav-hint">Drag: Rotate &nbsp;|&nbsp; Shift+Drag / MMB: Pan &nbsp;|&nbsp; Scroll: Zoom &nbsp;|&nbsp; 1-7: Views &nbsp;|&nbsp; R/P/Z/F/V: Modes &nbsp;|&nbsp; Arrows: fine rotate</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  DRAG & DROP
+// ════════════════════════════════════════════════════════════
+document.addEventListener('dragover', e => { e.preventDefault(); document.getElementById('drop-zone').classList.add('drag-over'); });
+document.addEventListener('dragleave', () => document.getElementById('drop-zone').classList.remove('drag-over'));
+document.addEventListener('drop', e => {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.toLowerCase().endsWith('.ply')) loadFile(file);
+  else alert('Please drop a .ply file.');
+});
+
+// ════════════════════════════════════════════════════════════
+//  FILE LOADING & PARSING
+// ════════════════════════════════════════════════════════════
+function loadFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try { initViewer(file.name, parsePLY(e.target.result)); }
+    catch(err) { alert('Parse error: ' + err.message); console.error(err); }
+  };
+  reader.readAsText(file);
+}
+
+function parsePLY(text) {
+  const lines = text.split(/\r?\n/);
+  const plies = []; const layerStack = []; let cur = null; let i = 0;
+  while (i < lines.length) {
+    const ln = lines[i].trim();
+    if (ln.startsWith('LAYER START ')) layerStack.push(ln.slice(12).trim());
+    else if (ln.startsWith('LAYER END')) { if (layerStack.length) layerStack.pop(); }
+    else if (ln.startsWith('START ')) {
+      cur = { name: ln.slice(6).trim(), layer: layerStack[layerStack.length-1]||'', polygons: [], offsets:{x:0,y:0,z:0} };
+      plies.push(cur);
+    }
+    else if (ln.startsWith('END ')) cur = null;
+    else if (ln.startsWith('P ') && cur) {
+      const n = parseInt(ln.slice(2), 10); const pts = [];
+      for (let j = 1; j <= n && i+j < lines.length; j++) {
+        const v = lines[i+j].trim().split(/\s+/).map(Number);
+        if (v.length >= 3) pts.push({ x:v[0], y:v[1], z:v[2], nx:v[3]||0, ny:v[4]||0, nz:v[5]||0 });
+      }
+      if (pts.length) cur.polygons.push(pts);
+      i += n;
+    }
+    i++;
+  }
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity,minZ=Infinity,maxZ=-Infinity;
+  plies.forEach(p => p.polygons.forEach(poly => poly.forEach(pt => {
+    if(pt.x<minX)minX=pt.x; if(pt.x>maxX)maxX=pt.x;
+    if(pt.y<minY)minY=pt.y; if(pt.y>maxY)maxY=pt.y;
+    if(pt.z<minZ)minZ=pt.z; if(pt.z>maxZ)maxZ=pt.z;
+  })));
+  const cx=(minX+maxX)/2, cy=(minY+maxY)/2, cz=(minZ+maxZ)/2;
+  const scale = Math.max(maxX-minX, maxY-minY, maxZ-minZ) || 1;
+  const layers = [...new Set(plies.map(p => p.layer))].filter(Boolean).sort();
+  return { plies, cx, cy, cz, scale, layers, bounds:{minX,maxX,minY,maxY,minZ,maxZ} };
+}
+
+// ════════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════════
+let plies=[], cx=0, cy=0, cz=0, scale=1, layers=[], bounds={};
+let camera = { rotX:0.35, rotY:0.5, zoom:1, panX:0, panY:0 };
+let opacity=0.7, lineWidth=1;
+let selectedLayer='ALL', selectedPlyIdx=null, hoveredPlyIdx=null;
+let navMode = 'rotate';
+let showFill=true, showNormals=false, showBbox=false, showGrid=false, showAxes=true, showPivot=false;
+let clipActive=false;
+let flyKeys={w:false,a:false,s:false,d:false,q:false,e:false}, flyInterval=null;
+
+// ── PIVOT STATE ──────────────────────────────────────────────
+let pivot = { x:0, y:0, z:0 };
+let pivotPreset = 'center'; // 'center'|'origin'|'selection'|'bbox-min'|'bbox-max'|'custom'|'click'
+
+const palette=['#e94560','#7ec8e3','#f5a623','#7ed321','#bd10e0','#9b9b9b','#4a90e2','#50e3c2','#b8e986','#ff6b6b','#ffd700','#ff8c69','#98fb98','#dda0dd','#87ceeb','#ffa07a'];
+let layerColors={};
+
+// ════════════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════════════
+function initViewer(filename, data) {
+  plies=data.plies; cx=data.cx; cy=data.cy; cz=data.cz; scale=data.scale; layers=data.layers; bounds=data.bounds;
+  camera={rotX:0.35,rotY:0.5,zoom:1,panX:0,panY:0};
+  selectedLayer='ALL'; selectedPlyIdx=null; hoveredPlyIdx=null; clipActive=false;
+  layerColors={};
+  layers.forEach((l,i) => { layerColors[l]=palette[i%palette.length]; });
+
+  // Init pivot to center
+  pivot = { x:cx, y:cy, z:cz };
+  pivotPreset = 'center';
+  updatePivotUI();
+
+  document.getElementById('drop-zone').style.display='none';
+  document.getElementById('nav-toolbar').style.display='flex';
+  document.getElementById('app').style.display='flex';
+  document.getElementById('axis-canvas').style.display='block';
+  document.getElementById('canvas-brand').style.display='flex';
+  document.getElementById('nav-mode-indicator').style.display='block';
+  document.getElementById('file-title').textContent = filename;
+  document.getElementById('btn-clip').classList.remove('active');
+
+  const list = document.getElementById('layer-list');
+  list.innerHTML = `<div class="layer-item active" onclick="selectLayer('ALL',this)">🗂 All Layers (${plies.length})</div>`;
+  layers.forEach(l => {
+    const count = plies.filter(p=>p.layer===l).length;
+    const d = document.createElement('div');
+    d.className='layer-item'; d.dataset.layer=l;
+    d.innerHTML=`<span style="color:${layerColors[l]};margin-right:5px">■</span>${l}<span style="color:#334;font-size:9px;margin-left:4px">(${count})</span>`;
+    d.onclick=()=>selectLayer(l,d);
+    list.appendChild(d);
+  });
+
+  updateNavModeUI();
+  resize(); draw();
+}
+
+// ════════════════════════════════════════════════════════════
+//  PIVOT POINT LOGIC
+// ════════════════════════════════════════════════════════════
+function setPivotPreset(preset) {
+  pivotPreset = preset;
+
+  // Deactivate click mode if we chose something else
+  if (preset !== 'click' && navMode === 'pivot') {
+    setNavMode('rotate');
+  }
+
+  switch(preset) {
+    case 'center':
+      pivot = { x:cx, y:cy, z:cz };
+      break;
+    case 'origin':
+      pivot = { x:0, y:0, z:0 };
+      break;
+    case 'selection':
+      if (selectedPlyIdx !== null) {
+        const ply = plies[selectedPlyIdx];
+        let sx=0,sy=0,sz=0,cnt=0;
+        ply.polygons.forEach(poly => poly.forEach(pt => { sx+=pt.x+ply.offsets.x; sy+=pt.y+ply.offsets.y; sz+=pt.z+ply.offsets.z; cnt++; }));
+        if (cnt>0) { pivot = { x:sx/cnt, y:sy/cnt, z:sz/cnt }; }
+        else { pivot = {x:cx,y:cy,z:cz}; }
+      } else {
+        pivot = {x:cx,y:cy,z:cz};
+        alert('Click a ply on the canvas first to pivot around it.');
+      }
+      break;
+    case 'bbox-min':
+      pivot = { x:bounds.minX, y:bounds.minY, z:bounds.minZ };
+      break;
+    case 'bbox-max':
+      pivot = { x:bounds.maxX, y:bounds.maxY, z:bounds.maxZ };
+      break;
+    case 'click':
+      setNavMode('pivot');
+      break;
+    // 'custom' is handled by setPivotCustom()
+  }
+
+  if (preset !== 'click') updatePivotUI();
+}
+
+function setPivotCustom() {
+  const x = parseFloat(document.getElementById('pv-x').value)||0;
+  const y = parseFloat(document.getElementById('pv-y').value)||0;
+  const z = parseFloat(document.getElementById('pv-z').value)||0;
+  pivot = {x,y,z};
+  pivotPreset = 'custom';
+  // Update button highlights
+  document.querySelectorAll('.pivot-btns button').forEach(b => b.classList.remove('active'));
+  updatePivotInfo();
+  draw();
+}
+
+function updatePivotUI() {
+  // Sync custom inputs
+  document.getElementById('pv-x').value = pivot.x.toFixed(2);
+  document.getElementById('pv-y').value = pivot.y.toFixed(2);
+  document.getElementById('pv-z').value = pivot.z.toFixed(2);
+
+  // Highlight active preset button
+  const map = { center:'pv-center', origin:'pv-origin', selection:'pv-selection',
+                'bbox-min':'pv-bbox-min', 'bbox-max':'pv-bbox-max', click:'pv-click' };
+  document.querySelectorAll('.pivot-btns button').forEach(b => b.classList.remove('active'));
+  if (map[pivotPreset]) document.getElementById(map[pivotPreset])?.classList.add('active');
+
+  updatePivotInfo();
+  draw();
+}
+
+function updatePivotInfo() {
+  const labels = { center:'Center', origin:'Origin (0,0,0)', selection:'Selection', 'bbox-min':'BBox Min', 'bbox-max':'BBox Max', click:'Click-picked', custom:'Custom' };
+  const txt = `Pivot: ${labels[pivotPreset]||pivotPreset} (${pivot.x.toFixed(1)}, ${pivot.y.toFixed(1)}, ${pivot.z.toFixed(1)})`;
+  document.getElementById('pivot-info').textContent = txt;
+  document.getElementById('info-pivot-bar').textContent = `Pivot: ${labels[pivotPreset]||pivotPreset}`;
+}
+
+// Pick pivot from canvas click — unproject via nearest polygon vertex
+function pickPivotFromClick(mx, my) {
+  let bestDist = Infinity, bestPt = null;
+  getVisible().forEach(ply => {
+    ply.polygons.forEach(poly => {
+      poly.forEach(pt => {
+        const p = project(pt.x+ply.offsets.x, pt.y+ply.offsets.y, pt.z+ply.offsets.z);
+        const d = Math.hypot(p.sx - mx, p.sy - my);
+        if (d < bestDist) { bestDist = d; bestPt = {x:pt.x+ply.offsets.x, y:pt.y+ply.offsets.y, z:pt.z+ply.offsets.z}; }
+      });
+    });
+  });
+  if (bestPt && bestDist < 40) {
+    pivot = { x:bestPt.x, y:bestPt.y, z:bestPt.z };
+  } else {
+    // Fallback: pick screen-center at depth 0
+    pivot = { x:cx, y:cy, z:cz };
+  }
+  pivotPreset = 'click';
+  updatePivotUI();
+  setNavMode('rotate');
+}
+
+function togglePivotVis() {
+  showPivot = !showPivot;
+  document.getElementById('btn-pivot-vis').classList.toggle('active', showPivot);
+  draw();
+}
+
+// ════════════════════════════════════════════════════════════
+//  CANVAS & RESIZE
+// ════════════════════════════════════════════════════════════
+const canvas  = document.getElementById('canvas');
+const ctx     = canvas.getContext('2d');
+const axCv    = document.getElementById('axis-canvas');
+const axCtx   = axCv.getContext('2d');
+let W, H;
+
+function resize() {
+  W = canvas.clientWidth; H = canvas.clientHeight;
+  canvas.width  = W * devicePixelRatio;
+  canvas.height = H * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  draw();
+}
+new ResizeObserver(resize).observe(canvas);
+
+// ════════════════════════════════════════════════════════════
+//  PROJECTION — pivot-aware
+// ════════════════════════════════════════════════════════════
+function project(x, y, z) {
+  // Translate so pivot is origin
+  const px = (x - pivot.x) / scale;
+  const py = (y - pivot.y) / scale;
+  const pz = (z - pivot.z) / scale;
+
+  const cY=Math.cos(camera.rotY), sY=Math.sin(camera.rotY);
+  const rx=px*cY+pz*sY, ry=py, rz=-px*sY+pz*cY;
+  const cX=Math.cos(camera.rotX), sX=Math.sin(camera.rotX);
+  const fx=rx, fy=ry*cX-rz*sX, fz=ry*sX+rz*cX;
+  const s = Math.min(W,H)*0.45*camera.zoom;
+  return { sx: fx*s+W/2+camera.panX, sy: -fy*s+H/2+camera.panY, sz: fz };
+}
+
+function projectDir(dx, dy, dz) {
+  const cY=Math.cos(camera.rotY), sY=Math.sin(camera.rotY);
+  const rx=dx*cY+dz*sY, ry=dy, rz=-dx*sY+dz*cY;
+  const cX=Math.cos(camera.rotX), sX=Math.sin(camera.rotX);
+  return { x:rx, y:ry*cX-rz*sX, z:ry*sX+rz*cX };
+}
+
+// ════════════════════════════════════════════════════════════
+//  CLIPPING
+// ════════════════════════════════════════════════════════════
+function isClipped(pt) {
+  if (!clipActive) return false;
+  const t  = parseFloat(document.getElementById('clip-slider').value)/100;
+  const ax = document.getElementById('clip-axis').value;
+  const b  = bounds;
+  const minV = ax==='x'?b.minX : ax==='y'?b.minY : b.minZ;
+  const maxV = ax==='x'?b.maxX : ax==='y'?b.maxY : b.maxZ;
+  const val  = ax==='x'?pt.x   : ax==='y'?pt.y   : pt.z;
+  return val > minV + (maxV-minV)*(t+1)/2;
+}
+
+// ════════════════════════════════════════════════════════════
+//  DRAW
+// ════════════════════════════════════════════════════════════
+function getVisible() {
+  return plies.filter(p => selectedLayer==='ALL' || p.layer===selectedLayer);
+}
+
+function draw() {
+  if (!W) return;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#1a1a2e'; ctx.fillRect(0,0,W,H);
+
+  if (showGrid) drawGrid();
+  if (showBbox) drawBoundingBox();
+
+  const vis = getVisible();
+  if (!vis.length) { updateInfoBar(); return; }
+
+  // Build & sort polygons back→front
+  const polys = [];
+  vis.forEach(ply => {
+    const color = layerColors[ply.layer]||'#ffffff';
+    const pidx  = plies.indexOf(ply);
+    const isSel = pidx===selectedPlyIdx || pidx===hoveredPlyIdx;
+    ply.polygons.forEach(poly => {
+      const clippedCount = poly.filter(pt => isClipped({
+        x:pt.x+ply.offsets.x, y:pt.y+ply.offsets.y, z:pt.z+ply.offsets.z
+      })).length;
+      if (clipActive && clippedCount > poly.length*0.5) return;
+
+      const proj = poly.map(pt => project(pt.x+ply.offsets.x, pt.y+ply.offsets.y, pt.z+ply.offsets.z));
+      const avgZ = proj.reduce((s,p)=>s+p.sz,0) / proj.length;
+      polys.push({ proj, color, avgZ, pidx, isSel, poly, ply });
+    });
+  });
+  polys.sort((a,b) => a.avgZ - b.avgZ);
+
+  ctx.save();
+  polys.forEach(({ proj, color, isSel, poly, ply }) => {
+    if (proj.length < 2) return;
+    ctx.beginPath();
+    ctx.moveTo(proj[0].sx, proj[0].sy);
+    for (let i=1; i<proj.length; i++) ctx.lineTo(proj[i].sx, proj[i].sy);
+    ctx.closePath();
+
+    if (showFill) {
+      ctx.globalAlpha = isSel ? Math.min(opacity+0.25,1) : opacity*0.2;
+      ctx.fillStyle = color; ctx.fill();
+    }
+    ctx.globalAlpha = isSel ? 1 : opacity;
+    ctx.strokeStyle  = isSel ? '#ffffff' : color;
+    ctx.lineWidth    = isSel ? lineWidth*2 : lineWidth;
+    ctx.stroke();
+
+    // Normals
+    if (showNormals) {
+      poly.forEach((pt, i) => {
+        if (pt.nx===0&&pt.ny===0&&pt.nz===0) return;
+        const p0 = proj[i];
+        const nl = scale * 0.025 * camera.zoom;
+        const p1 = project(pt.x+ply.offsets.x+pt.nx*nl*scale,
+                           pt.y+ply.offsets.y+pt.ny*nl*scale,
+                           pt.z+ply.offsets.z+pt.nz*nl*scale);
+        ctx.beginPath(); ctx.moveTo(p0.sx,p0.sy); ctx.lineTo(p1.sx,p1.sy);
+        ctx.strokeStyle='#ffdd57'; ctx.lineWidth=0.7; ctx.globalAlpha=0.55; ctx.stroke();
+      });
+    }
+    ctx.globalAlpha = 1;
+  });
+  ctx.restore();
+
+  // Draw pivot point indicator
+  if (showPivot) drawPivotIndicator();
+
+  if (showAxes) drawAxisIndicator();
+  drawSectionPlaneIndicator();
+  updateInfoBar();
+}
+
+// ── PIVOT INDICATOR ────────────────────────────────────────
+function drawPivotIndicator() {
+  const p = project(pivot.x, pivot.y, pivot.z);
+  const r = 8;
+  ctx.save();
+  ctx.globalAlpha = 0.9;
+  // Crosshair
+  ctx.strokeStyle = '#e94560'; ctx.lineWidth = 1.5;
+  ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(p.sx - r*2, p.sy); ctx.lineTo(p.sx + r*2, p.sy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(p.sx, p.sy - r*2); ctx.lineTo(p.sx, p.sy + r*2); ctx.stroke();
+  ctx.setLineDash([]);
+  // Circle
+  ctx.beginPath(); ctx.arc(p.sx, p.sy, r, 0, Math.PI*2);
+  ctx.strokeStyle = '#e94560'; ctx.lineWidth = 1.5; ctx.stroke();
+  // Inner dot
+  ctx.beginPath(); ctx.arc(p.sx, p.sy, 2, 0, Math.PI*2);
+  ctx.fillStyle = '#e94560'; ctx.fill();
+  // Label
+  ctx.font = '9px monospace'; ctx.fillStyle = '#e94560';
+  ctx.fillText('PIVOT', p.sx + r + 3, p.sy - 3);
+  ctx.restore();
+}
+
+// ── GRID ──────────────────────────────────────────────────────
+function drawGrid() {
+  const steps=16, half=steps/2;
+  ctx.save(); ctx.strokeStyle='#1e3a5f'; ctx.lineWidth=0.5; ctx.globalAlpha=0.45;
+  for (let i=-half; i<=half; i++) {
+    const sp=scale/steps*2;
+    let p1=project(cx+i*sp, cy, bounds.minZ), p2=project(cx+i*sp, cy, bounds.maxZ);
+    ctx.beginPath(); ctx.moveTo(p1.sx,p1.sy); ctx.lineTo(p2.sx,p2.sy); ctx.stroke();
+    p1=project(bounds.minX, cy, cz+i*sp); p2=project(bounds.maxX, cy, cz+i*sp);
+    ctx.beginPath(); ctx.moveTo(p1.sx,p1.sy); ctx.lineTo(p2.sx,p2.sy); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ── BOUNDING BOX ──────────────────────────────────────────────
+function drawBoundingBox() {
+  const {minX,maxX,minY,maxY,minZ,maxZ} = bounds;
+  const c = [[minX,minY,minZ],[maxX,minY,minZ],[maxX,maxY,minZ],[minX,maxY,minZ],
+             [minX,minY,maxZ],[maxX,minY,maxZ],[maxX,maxY,maxZ],[minX,maxY,maxZ]];
+  const edges = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+  const pc = c.map(([x,y,z]) => project(x,y,z));
+  ctx.save(); ctx.strokeStyle='#f5a623'; ctx.lineWidth=1; ctx.globalAlpha=0.7;
+  ctx.setLineDash([5,4]);
+  edges.forEach(([a,b]) => {
+    ctx.beginPath(); ctx.moveTo(pc[a].sx,pc[a].sy); ctx.lineTo(pc[b].sx,pc[b].sy); ctx.stroke();
+  });
+  ctx.setLineDash([]); ctx.fillStyle='#f5a623'; ctx.font='10px monospace'; ctx.globalAlpha=0.8;
+  ctx.fillText(`${(bounds.maxX-bounds.minX).toFixed(0)} ×`, pc[0].sx+4, pc[0].sy-4);
+  ctx.restore();
+}
+
+// ── SECTION PLANE INDICATOR ────────────────────────────────────
+function drawSectionPlaneIndicator() {
+  if (!clipActive) return;
+  ctx.save();
+  const ax = document.getElementById('clip-axis').value;
+  const t  = parseFloat(document.getElementById('clip-slider').value)/100;
+  const b  = bounds;
+  const minV = ax==='x'?b.minX:ax==='y'?b.minY:b.minZ;
+  const maxV = ax==='x'?b.maxX:ax==='y'?b.maxY:b.maxZ;
+  const val  = minV + (maxV-minV)*(t+1)/2;
+
+  let p1, p2, p3, p4;
+  if (ax==='x') {
+    p1=project(val,b.minY,b.minZ); p2=project(val,b.maxY,b.minZ);
+    p3=project(val,b.maxY,b.maxZ); p4=project(val,b.minY,b.maxZ);
+  } else if (ax==='y') {
+    p1=project(b.minX,val,b.minZ); p2=project(b.maxX,val,b.minZ);
+    p3=project(b.maxX,val,b.maxZ); p4=project(b.minX,val,b.maxZ);
+  } else {
+    p1=project(b.minX,b.minY,val); p2=project(b.maxX,b.minY,val);
+    p3=project(b.maxX,b.maxY,val); p4=project(b.minX,b.maxY,val);
+  }
+  ctx.beginPath(); ctx.moveTo(p1.sx,p1.sy); ctx.lineTo(p2.sx,p2.sy);
+  ctx.lineTo(p3.sx,p3.sy); ctx.lineTo(p4.sx,p4.sy); ctx.closePath();
+  ctx.fillStyle='rgba(233,69,96,0.1)'; ctx.fill();
+  ctx.strokeStyle='#e94560'; ctx.lineWidth=1.5; ctx.setLineDash([6,3]); ctx.stroke();
+  ctx.restore();
+}
+
+// ── AXIS INDICATOR ────────────────────────────────────────────
+function drawAxisIndicator() {
+  const sz=70, c2=sz/2, len=22;
+  axCtx.clearRect(0,0,140,140);
+  axCtx.save(); axCtx.scale(2,2);
+  axCtx.fillStyle='rgba(13,27,42,0.72)';
+  axCtx.beginPath(); axCtx.arc(c2,c2,sz/2-2,0,Math.PI*2); axCtx.fill();
+  axCtx.strokeStyle='#1e3a5f'; axCtx.lineWidth=0.5; axCtx.stroke();
+
+  [
+    {d:[1,0,0], color:'#e94560', label:'X'},
+    {d:[0,1,0], color:'#7ed321', label:'Y'},
+    {d:[0,0,1], color:'#4a90e2', label:'Z'}
+  ].forEach(({d,color,label}) => {
+    const pd = projectDir(d[0],d[1],d[2]);
+    const ex = c2+pd.x*len, ey = c2-pd.y*len;
+    axCtx.beginPath(); axCtx.moveTo(c2,c2); axCtx.lineTo(ex,ey);
+    axCtx.strokeStyle=color; axCtx.lineWidth=2.5; axCtx.stroke();
+    const ang=Math.atan2(ey-c2,ex-c2);
+    axCtx.beginPath();
+    axCtx.moveTo(ex,ey);
+    axCtx.lineTo(ex-7*Math.cos(ang-0.4),ey-7*Math.sin(ang-0.4));
+    axCtx.lineTo(ex-7*Math.cos(ang+0.4),ey-7*Math.sin(ang+0.4));
+    axCtx.closePath(); axCtx.fillStyle=color; axCtx.fill();
+    axCtx.fillStyle=color; axCtx.font='bold 8px sans-serif';
+    axCtx.textAlign='center'; axCtx.textBaseline='middle';
+    axCtx.fillText(label, ex+Math.cos(ang)*10, ey+Math.sin(ang)*10);
+  });
+  axCtx.restore();
+}
+
+// ════════════════════════════════════════════════════════════
+//  INFO BAR
+// ════════════════════════════════════════════════════════════
+function updateInfoBar() {
+  const vis=getVisible();
+  const pc=vis.reduce((s,p)=>s+p.polygons.length,0);
+  const ptc=vis.reduce((s,p)=>s+p.polygons.reduce((ss,poly)=>ss+poly.length,0),0);
+  document.getElementById('info-plies').textContent =`Plies: ${vis.length}`;
+  document.getElementById('info-poly').textContent  =`Polygons: ${pc}`;
+  document.getElementById('info-pts').textContent   =`Points: ${ptc}`;
+  document.getElementById('info-layer').textContent =`Layer: ${selectedLayer}`;
+  document.getElementById('info-zoom').textContent  =`Zoom: ${Math.round(camera.zoom*100)}%`;
+}
+
+// ════════════════════════════════════════════════════════════
+//  NAV MODES
+// ════════════════════════════════════════════════════════════
+function setNavMode(mode) {
+  navMode = mode;
+  if (mode==='fly') startFly(); else stopFly();
+  updateNavModeUI();
+}
+
+function updateNavModeUI() {
+  ['rotate','pan','zoom','fly','pivot'].forEach(m =>
+    document.getElementById('mode-'+m)?.classList.toggle('active', m===navMode)
+  );
+  const labels={rotate:'🔄 Rotate',pan:'✋ Pan',zoom:'🔍 Zoom',fly:'🚀 Fly — WASD to move, Q/E zoom', pivot:'🎯 Click to set pivot point'};
+  document.getElementById('nav-mode-indicator').textContent = labels[navMode]||'';
+  document.getElementById('pivot-mode-indicator').style.display = navMode==='pivot' ? 'block' : 'none';
+  const cursors={rotate:'crosshair',pan:'move',zoom:'zoom-in',fly:'none',pivot:'cell'};
+  canvas.style.cursor = cursors[navMode]||'default';
+}
+
+// ════════════════════════════════════════════════════════════
+//  MOUSE
+// ════════════════════════════════════════════════════════════
+let drag=null;
+
+canvas.addEventListener('mousedown', e => {
+  if (navMode === 'pivot') return; // handled in mouseup
+  drag={ x:e.clientX, y:e.clientY, rotX:camera.rotX, rotY:camera.rotY,
+         panX:camera.panX, panY:camera.panY, zoom:camera.zoom, btn:e.button, moved:false };
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (drag) {
+    const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
+    if (Math.abs(dx)>2||Math.abs(dy)>2) drag.moved=true;
+
+    const isPan  = drag.btn===1 || drag.btn===2 || (drag.btn===0 && (e.shiftKey||navMode==='pan'));
+    const isZoom = drag.btn===0 && navMode==='zoom';
+    const isRot  = drag.btn===0 && !isPan && !isZoom && navMode!=='fly';
+
+    if      (isPan)  { camera.panX=drag.panX+dx; camera.panY=drag.panY+dy; }
+    else if (isZoom) { camera.zoom=Math.max(0.05,Math.min(30, drag.zoom*Math.pow(1.01,-dy))); }
+    else if (isRot)  { camera.rotY=drag.rotY+dx*0.008; camera.rotX=drag.rotX+dy*0.008; }
+    draw();
+  }
+
+  // Hover tooltip
+  if (navMode === 'pivot') return;
+  const rect=canvas.getBoundingClientRect();
+  const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  const found=pickPly(mx,my);
+  if (found!==hoveredPlyIdx) { hoveredPlyIdx=found; draw(); }
+
+  const tt=document.getElementById('tooltip');
+  if (found!==null) {
+    const ply=plies[found];
+    const pts=ply.polygons.reduce((s,p)=>s+p.length,0);
+    tt.style.display='block';
+    tt.style.left=(mx+14)+'px'; tt.style.top=(my-10)+'px';
+    tt.innerHTML=`<b>${ply.name}</b><br>
+      Layer: <span style="color:${layerColors[ply.layer]}">${ply.layer}</span><br>
+      Polygons: ${ply.polygons.length} &nbsp;|&nbsp; Points: ${pts}<br>
+      <span class="coord-badge">ΔX ${ply.offsets.x}</span>
+      <span class="coord-badge">ΔY ${ply.offsets.y}</span>
+      <span class="coord-badge">ΔZ ${ply.offsets.z}</span>`;
+    document.getElementById('info-hover').textContent=`Hovering: ${ply.name}`;
+  } else {
+    tt.style.display='none';
+    document.getElementById('info-hover').textContent='Hover a polygon for details';
+  }
+});
+
+canvas.addEventListener('mouseup', e => {
+  // Pivot pick mode
+  if (navMode === 'pivot') {
+    const rect=canvas.getBoundingClientRect();
+    pickPivotFromClick(e.clientX-rect.left, e.clientY-rect.top);
+    return;
+  }
+
+  if (drag && !drag.moved) {
+    const rect=canvas.getBoundingClientRect();
+    const found=pickPly(e.clientX-rect.left, e.clientY-rect.top);
+    selectedPlyIdx=found;
+    if (found!==null) {
+      const ply=plies[found];
+      document.getElementById('edit-name').value=ply.name;
+      document.getElementById('edit-dx').value=ply.offsets.x;
+      document.getElementById('edit-dy').value=ply.offsets.y;
+      document.getElementById('edit-dz').value=ply.offsets.z;
+    }
+    draw();
+  }
+  drag=null;
+});
+
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect=canvas.getBoundingClientRect();
+  const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  const factor=e.deltaY>0?0.92:1.09;
+  const before=camera.zoom;
+  camera.zoom=Math.max(0.05,Math.min(30,camera.zoom*factor));
+  const zr=camera.zoom/before;
+  camera.panX=mx+(camera.panX-mx)*zr;
+  camera.panY=my+(camera.panY-my)*zr;
+  draw();
+},{passive:false});
+
+// ── TOUCH ─────────────────────────────────────────────────
+let touches=null;
+canvas.addEventListener('touchstart', e=>{
+  e.preventDefault();
+  if (e.touches.length===1) {
+    touches={x:e.touches[0].clientX,y:e.touches[0].clientY,rotX:camera.rotX,rotY:camera.rotY,mode:'rot'};
+  } else if (e.touches.length===2) {
+    const dist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    touches={dist,zoom:camera.zoom,mode:'pinch',
+             cx:(e.touches[0].clientX+e.touches[1].clientX)/2,
+             cy:(e.touches[0].clientY+e.touches[1].clientY)/2,
+             panX:camera.panX,panY:camera.panY};
+  }
+},{passive:false});
+canvas.addEventListener('touchmove',e=>{
+  e.preventDefault(); if(!touches)return;
+  if(e.touches.length===1&&touches.mode==='rot'){
+    camera.rotY=touches.rotY+(e.touches[0].clientX-touches.x)*0.01;
+    camera.rotX=touches.rotX+(e.touches[0].clientY-touches.y)*0.01; draw();
+  } else if(e.touches.length===2&&touches.mode==='pinch'){
+    const dist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    camera.zoom=Math.max(0.05,Math.min(30,touches.zoom*(dist/touches.dist)));
+    const ncx=(e.touches[0].clientX+e.touches[1].clientX)/2;
+    const ncy=(e.touches[0].clientY+e.touches[1].clientY)/2;
+    camera.panX=touches.panX+(ncx-touches.cx);
+    camera.panY=touches.panY+(ncy-touches.cy); draw();
+  }
+},{passive:false});
+canvas.addEventListener('touchend',()=>{touches=null;});
+
+// ════════════════════════════════════════════════════════════
+//  KEYBOARD
+// ════════════════════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (e.target.tagName==='INPUT'||e.target.tagName==='SELECT') return;
+  const k=e.key;
+  const kl=k.toLowerCase();
+
+  // Escape pivot mode
+  if (k==='Escape' && navMode==='pivot') { setNavMode('rotate'); return; }
+
+  // Mode
+  if (kl==='r') setNavMode('rotate');
+  if (kl==='p') setNavMode('pan');
+  if (kl==='z' && !e.ctrlKey) setNavMode('zoom');
+  if (kl==='f') setNavMode(navMode==='fly'?'rotate':'fly');
+  if (kl==='v') setNavMode(navMode==='pivot'?'rotate':'pivot');
+
+  // Named views
+  if (k==='1') setView('front');
+  if (k==='2') setView('back');
+  if (k==='3') setView('left');
+  if (k==='4') setView('right');
+  if (k==='5') setView('top');
+  if (k==='6') setView('bottom');
+  if (k==='7') setView('iso');
+
+  // Zoom
+  if (k==='+'||k==='=') zoomStep(1.2);
+  if (k==='-') zoomStep(0.83);
+  if (kl==='a' && navMode!=='fly') fitAll();
+
+  // Display
+  if (kl==='w' && navMode!=='fly') setDisplay('wire');
+  if (kl==='e' && navMode!=='fly') setDisplay('shade');
+  if (kl==='n') toggleNormals();
+  if (kl==='b') toggleBbox();
+  if (kl==='g') toggleGrid();
+  if (kl==='x') toggleAxes();
+  if (kl==='c') toggleClip();
+  if (kl==='i') togglePivotVis();
+
+  // Arrow keys — fine rotate
+  if (k==='ArrowLeft')  { camera.rotY-=0.08; draw(); e.preventDefault(); }
+  if (k==='ArrowRight') { camera.rotY+=0.08; draw(); e.preventDefault(); }
+  if (k==='ArrowUp')    { camera.rotX-=0.08; draw(); e.preventDefault(); }
+  if (k==='ArrowDown')  { camera.rotX+=0.08; draw(); e.preventDefault(); }
+
+  // Home
+  if (k==='Home') resetCamera();
+
+  // Fly keys
+  if (['w','a','s','d','q','e'].includes(kl) && navMode==='fly') flyKeys[kl]=true;
+});
+
+document.addEventListener('keyup', e => {
+  const kl=e.key.toLowerCase();
+  if (['w','a','s','d','q','e'].includes(kl)) flyKeys[kl]=false;
+});
+
+// ════════════════════════════════════════════════════════════
+//  FLY-THROUGH
+// ════════════════════════════════════════════════════════════
+function startFly() {
+  if (flyInterval) return;
+  const spd = () => Math.min(W,H)*0.45*camera.zoom*0.012;
+  flyInterval=setInterval(()=>{
+    let mv=false;
+    if (flyKeys['w']) { camera.panY+=spd(); mv=true; }
+    if (flyKeys['s']) { camera.panY-=spd(); mv=true; }
+    if (flyKeys['a']) { camera.panX+=spd(); mv=true; }
+    if (flyKeys['d']) { camera.panX-=spd(); mv=true; }
+    if (flyKeys['q']) { camera.zoom=Math.min(30,camera.zoom*1.012); mv=true; }
+    if (flyKeys['e']) { camera.zoom=Math.max(0.05,camera.zoom*0.988); mv=true; }
+    if (mv) draw();
+  },16);
+}
+function stopFly() { clearInterval(flyInterval); flyInterval=null; }
+
+// ════════════════════════════════════════════════════════════
+//  PICK PLY
+// ════════════════════════════════════════════════════════════
+function pickPly(mx,my) {
+  let best=null, bestZ=-Infinity;
+  getVisible().forEach(ply=>{
+    const pidx=plies.indexOf(ply);
+    ply.polygons.forEach(poly=>{
+      const proj=poly.map(pt=>project(pt.x+ply.offsets.x,pt.y+ply.offsets.y,pt.z+ply.offsets.z));
+      const avgZ=proj.reduce((s,p)=>s+p.sz,0)/proj.length;
+      if (avgZ>bestZ && pointInPoly(mx,my,proj)) { best=pidx; bestZ=avgZ; }
+    });
+  });
+  return best;
+}
+
+function pointInPoly(px,py,pts) {
+  let inside=false;
+  for (let i=0,j=pts.length-1;i<pts.length;j=i++){
+    const xi=pts[i].sx,yi=pts[i].sy,xj=pts[j].sx,yj=pts[j].sy;
+    if(((yi>py)!==(yj>py))&&(px<(xj-xi)*(py-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+
+// ════════════════════════════════════════════════════════════
+//  NAMED VIEW ANIMATION
+// ════════════════════════════════════════════════════════════
+function setView(v) {
+  const PI=Math.PI;
+  const views={
+    front:  {rotX:0,      rotY:0},
+    back:   {rotX:0,      rotY:PI},
+    left:   {rotX:0,      rotY:-PI/2},
+    right:  {rotX:0,      rotY:PI/2},
+    top:    {rotX:-PI/2,  rotY:0},
+    bottom: {rotX:PI/2,   rotY:0},
+    iso:    {rotX:0.615,  rotY:0.785}
+  };
+  if (views[v]) animateCamera(views[v]);
+}
+
+function animateCamera(target) {
+  const s0={rotX:camera.rotX,rotY:camera.rotY};
+  const t0=performance.now(), dur=320;
+  (function step(now){
+    let t=Math.min((now-t0)/dur,1);
+    t=t<0.5?2*t*t:(4-2*t)*t-1;
+    camera.rotX=s0.rotX+(target.rotX-s0.rotX)*t;
+    camera.rotY=s0.rotY+(target.rotY-s0.rotY)*t;
+    draw(); if(t<1) requestAnimationFrame(step);
+  })(t0);
+}
+
+// ════════════════════════════════════════════════════════════
+//  ZOOM HELPERS
+// ════════════════════════════════════════════════════════════
+function zoomStep(f) {
+  camera.zoom=Math.max(0.05,Math.min(30,camera.zoom*f)); draw();
+}
+
+function fitAll() {
+  camera.panX=0; camera.panY=0; camera.zoom=1;
+  animateCamera({rotX:0.35,rotY:0.5});
+}
+
+function zoomToSelection() {
+  if (selectedPlyIdx===null) { fitAll(); return; }
+  const ply=plies[selectedPlyIdx];
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  ply.polygons.forEach(poly=>poly.forEach(pt=>{
+    const p=project(pt.x+ply.offsets.x,pt.y+ply.offsets.y,pt.z+ply.offsets.z);
+    if(p.sx<minX)minX=p.sx; if(p.sx>maxX)maxX=p.sx;
+    if(p.sy<minY)minY=p.sy; if(p.sy>maxY)maxY=p.sy;
+  }));
+  const scx=(minX+maxX)/2, scy=(minY+maxY)/2;
+  camera.panX+=W/2-scx; camera.panY+=H/2-scy;
+  const sf=Math.min(W/(maxX-minX||1), H/(maxY-minY||1))*0.65;
+  camera.zoom*=sf; draw();
+}
+
+function rotateStepped(dY,dX) {
+  animateCamera({rotX:camera.rotX+dX, rotY:camera.rotY+dY});
+}
+
+function flipAxis(ax) {
+  if(ax==='x') animateCamera({rotX:camera.rotX, rotY:camera.rotY+Math.PI});
+  else          animateCamera({rotX:camera.rotX+Math.PI, rotY:camera.rotY});
+}
+
+function resetCamera() { fitAll(); }
+
+// ════════════════════════════════════════════════════════════
+//  DISPLAY TOGGLES
+// ════════════════════════════════════════════════════════════
+function setDisplay(mode) {
+  showFill = (mode==='shade');
+  document.getElementById('btn-shaded').classList.toggle('active', showFill);
+  document.getElementById('btn-wireframe').classList.toggle('active', !showFill);
+  draw();
+}
+function toggleNormals() {
+  showNormals=!showNormals;
+  document.getElementById('btn-normals').classList.toggle('active',showNormals); draw();
+}
+function toggleBbox() {
+  showBbox=!showBbox;
+  document.getElementById('btn-bbox').classList.toggle('active',showBbox); draw();
+}
+function toggleGrid() {
+  showGrid=!showGrid;
+  document.getElementById('btn-grid').classList.toggle('active',showGrid); draw();
+}
+function toggleAxes() {
+  showAxes=!showAxes;
+  document.getElementById('btn-axes').classList.toggle('active',showAxes);
+  axCv.style.visibility=showAxes?'visible':'hidden'; draw();
+}
+function toggleClip() {
+  clipActive=!clipActive;
+  document.getElementById('btn-clip').classList.toggle('active',clipActive); draw();
+}
+
+// ════════════════════════════════════════════════════════════
+//  LAYER / EDIT / CONTROLS
+// ════════════════════════════════════════════════════════════
+function selectLayer(name,el) {
+  selectedLayer=name; selectedPlyIdx=null;
+  document.querySelectorAll('.layer-item').forEach(e=>e.classList.remove('active'));
+  el.classList.add('active'); draw();
+}
+
+function applyEdit() {
+  if (selectedPlyIdx===null) { alert('Click a ply on the canvas first.'); return; }
+  const ply=plies[selectedPlyIdx];
+  const n=document.getElementById('edit-name').value.trim();
+  if(n) ply.name=n;
+  ply.offsets.x=parseFloat(document.getElementById('edit-dx').value)||0;
+  ply.offsets.y=parseFloat(document.getElementById('edit-dy').value)||0;
+  ply.offsets.z=parseFloat(document.getElementById('edit-dz').value)||0;
+  draw();
+}
+
+function resetEdit() {
+  if (selectedPlyIdx===null) return;
+  plies[selectedPlyIdx].offsets={x:0,y:0,z:0};
+  ['dx','dy','dz'].forEach(k=>document.getElementById('edit-'+k).value=0);
+  draw();
+}
+
+function setOpacity(v)   { opacity=v/100; document.getElementById('opacity-val').textContent=v+'%'; draw(); }
+function setLineWidth(v) { lineWidth=parseFloat(v); document.getElementById('lw-val').textContent=v; draw(); }
+</script>
+</body>
+</html>
